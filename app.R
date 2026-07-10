@@ -39,6 +39,7 @@ ui <- fluidPage(
     .scan-manager-box { 
       background: #fff3cd; padding: 15px; border: 1px solid #ffeeba; 
       border-radius: 8px; height: 100%; min-height: 400px;
+      display: flex; flex-direction: column;
     }
     .control-panel { padding: 15px; border-radius: 5px; margin-bottom:15px; }
     summary { cursor: pointer; }
@@ -48,6 +49,13 @@ ui <- fluidPage(
       gap: 10px;
       justify-content: flex-end;
       margin-top: 5px;
+    }
+    
+    /* Conditional styling for the Export Matrix button */
+    #downloadFullData:not(.disabled) {
+      background-color: #28a745 !important;
+      color: white !important;
+      border: none !important;
     }
     
     /* Header Styling */
@@ -60,24 +68,26 @@ ui <- fluidPage(
       border-bottom: 1px solid #eee; 
       margin-bottom: 20px;
     }
+    
+    .nav-buttons {
+      margin-top: auto;
+      padding-top: 10px;
+      display: flex;
+      gap: 5px;
+    }
   "))),
   
   #--- BRANDED HEADER ---#
   div(class = "app-header",
-      # LEFT: Logos
       div(style = "flex: 1; display: flex; align-items: center; gap: 20px;",
           img(src = "LPI.png", height = "50px"),
           img(src = "LeibnizIPHT.png", height = "45px")
       ),
-      
-      # CENTER: Title
       div(style = "flex: 2; text-align: center;",
           h1("PRISM", style = "font-weight: 900; margin: 0; color: #2c3e50; letter-spacing: 1px;"),
           p("Phasor-based Raman Image Segmentation Manager", 
             style = "font-weight: 300; color: #7f8c8d; font-size: 1.1em; margin-bottom: 0;")
       ),
-      
-      # RIGHT: Credentials
       div(style = "flex: 1; text-align: right; font-size: 0.9em; color: #95a5a6; line-height: 1.4;",
           tags$b("Developed by: Max Naumann"), br(),
           HTML("&copy; 2026 All Rights Reserved")
@@ -96,7 +106,6 @@ ui <- fluidPage(
                             actionButton("load_btn", "Load Data", class = "btn-primary", style="width:100%; margin-top:10px;")
                         )
            ),
-           
            hr(),
            tags$details(open = "open",
                         tags$summary(style="font-size:1.2em; margin-bottom:10px; color:#2c3e50; font-weight:bold;", "Data Preprocessing"),
@@ -110,12 +119,11 @@ ui <- fluidPage(
                             actionButton("reset_btn", "Reset", class = "btn-link", style="width:100%; color: #dc3545;")
                         )
            ),
-           
            hr(),
            tags$details(open = "open",
                         tags$summary(style="font-size:1.2em; margin-bottom:10px; color:#2c3e50; font-weight:bold;", "Cluster Selection"),
                         tags$details(
-                          tags$summary(style="font-size:1.1em; font-weight:bold; color: #2980b9;", "> Grouping by Metadata"),
+                          tags$summary(style="font-size:1.1em; font-weight:bold;", "> Grouping by Metadata"),
                           div(style="padding: 10px; border-left: 3px solid #2980b9; margin-bottom: 10px;",
                               uiOutput("meta_selector_ui")
                           )
@@ -137,7 +145,6 @@ ui <- fluidPage(
                           actionButton("run_kmeans", "Run Auto-Clustering", class = "btn-success", style="width:100%")
                         )
            ),
-           
            hr(),
            tags$details(open = "open",
                         tags$summary(style="font-size:1.2em; margin-bottom:10px; color:#2c3e50; font-weight:bold;", "Cluster Management"),
@@ -161,8 +168,12 @@ ui <- fluidPage(
              column(6, 
                     div(class = "plot-container", 
                         div(class = "plot-header", "False-color Raman Image"), 
-                        plotOutput("ramanImage", height = "380px"),
-                        div(class = "export-container", downloadButton("downloadImage", "Export Image (PNG)", class = "btn-sm"))
+                        uiOutput("ramanImage_container"),
+                        div(class = "export-container", 
+                            # Swapped Positions and updated button ID/classes
+                            downloadButton("downloadImage", "Export Image (PNG)", class = "btn-sm"),
+                            downloadButton("downloadFullData", "Export Spectral Matrix (CSV)", class = "btn-sm")
+                        )
                     )
              )
            ),
@@ -182,8 +193,12 @@ ui <- fluidPage(
                         tags$summary(style="font-size:1.2em; margin-bottom:10px; color:#2c3e50; font-weight:bold;", "Data Management"),
                         div(class = "scan-manager-box",
                             style = "padding-top: 5px;",
-                            helpText("Active Scan:"),
-                            uiOutput("scan_selector_ui")
+                            helpText("Active Scan(s):"),
+                            uiOutput("scan_selector_ui"),
+                            div(class = "nav-buttons",
+                                actionButton("prev_scan", "↑ Up", class = "btn-default", style="width:50%"),
+                                actionButton("next_scan", "↓ Down", class = "btn-default", style="width:50%")
+                            )
                         )
            )
     )
@@ -229,11 +244,38 @@ server <- function(input, output, session) {
           }
         }
         if(length(spc_list) == 0) stop("No valid hyperSpec objects found.")
+        for(n in names(spc_list)) { spc_list[[n]]@data$filename <- n }
         raw_data_list(spc_list)
         all_scans(spc_list) 
         showNotification("Data loaded raw.", type = "message")
       }, error = function(e) { showNotification(paste("Error:", e$message), type = "error") })
     })
+  })
+  
+  observeEvent(input$next_scan, {
+    scans <- names(all_scans()); req(length(scans) > 0)
+    curr <- input$selected_scan_names
+    if(length(curr) != 1) return()
+    idx <- which(scans == curr)
+    next_idx <- if(idx == length(scans)) 1 else idx + 1
+    updateCheckboxGroupInput(session, "selected_scan_names", selected = scans[next_idx])
+  })
+  
+  observeEvent(input$prev_scan, {
+    scans <- names(all_scans()); req(length(scans) > 0)
+    curr <- input$selected_scan_names
+    if(length(curr) != 1) return()
+    idx <- which(scans == curr)
+    prev_idx <- if(idx == 1) length(scans) else idx - 1
+    updateCheckboxGroupInput(session, "selected_scan_names", selected = scans[prev_idx])
+  })
+  
+  observe({
+    if(length(input$selected_scan_names) != 1) {
+      shinyjs::disable("prev_scan"); shinyjs::disable("next_scan")
+    } else {
+      shinyjs::enable("prev_scan"); shinyjs::enable("next_scan")
+    }
   })
   
   observeEvent(input$process_btn, {
@@ -287,15 +329,12 @@ server <- function(input, output, session) {
     groups <- as.character(d@data[[input$selected_meta_col]])
     unique_groups <- unique(groups)
     palette <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf")
-    
     new_rois <- list()
     for(i in seq_along(unique_groups)) {
       g_name <- unique_groups[i]
       indices <- which(groups == g_name)
       new_rois[[paste0("meta_", i)]] <- list(
-        ids = df$id[indices], 
-        name = g_name, 
-        color = palette[((i-1) %% length(palette)) + 1]
+        ids = df$id[indices], name = g_name, color = palette[((i-1) %% length(palette)) + 1]
       )
     }
     rois(new_rois)
@@ -304,12 +343,17 @@ server <- function(input, output, session) {
   
   output$scan_selector_ui <- renderUI({
     scans <- all_scans(); req(length(scans) > 0)
-    radioButtons("selected_scan_name", NULL, choices = names(scans))
+    checkboxGroupInput("selected_scan_names", NULL, choices = names(scans), selected = names(scans)[1])
   })
   
   current_data <- reactive({
-    req(input$selected_scan_name)
-    all_scans()[[input$selected_scan_name]]
+    req(input$selected_scan_names)
+    scans_list <- all_scans()[input$selected_scan_names]
+    if(length(scans_list) == 1) {
+      return(scans_list[[1]])
+    } else {
+      return(do.call(hyperSpec::collapse, scans_list))
+    }
   })
   
   phasor_base <- reactive({
@@ -318,29 +362,55 @@ server <- function(input, output, session) {
     sum_I <- rowSums(d$spc); sum_I[sum_I == 0] <- 1 
     G <- (d$spc %*% cos(phase_term)) / sum_I
     S <- (d$spc %*% sin(phase_term)) / sum_I
-    data.frame(G = as.numeric(G), S = as.numeric(S), x = d$x, y = d$y, id = 1:nrow(d))
+    data.frame(G = as.numeric(G), S = as.numeric(S), x = d$x, y = d$y, 
+               id = 1:nrow(d), filename = d@data$filename)
   })
   
   output$roi_selector_ui <- renderUI({
     roi_list <- rois()
+    # Define your 10 safe color options
+    safe_colors <- c("black", "red", "blue", "green", "magenta", 
+                     "orange", "cyan", "purple", "brown", "grey")
+    
     if(length(roi_list) == 0) return(p("No Clusters saved."))
+    
     tagList(lapply(names(roi_list), function(id) {
-      div(class = "roi-control", fluidRow(
-        column(2, checkboxInput(paste0("vis_", id), NULL, value = TRUE)),
-        column(6, textInput(paste0("name_", id), NULL, value = roi_list[[id]]$name)),
-        column(4, textInput(paste0("hex_", id), NULL, value = roi_list[[id]]$color))
-      ))
+      div(class = "roi-control", style = "margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;",
+          fluidRow(
+            column(1, checkboxInput(paste0("vis_", id), NULL, value = TRUE)),
+            column(6, textInput(paste0("name_", id), NULL, value = roi_list[[id]]$name)),
+            column(5, selectInput(paste0("hex_", id), NULL, 
+                                  choices = safe_colors, 
+                                  selected = roi_list[[id]]$color))
+          )
+      )
     }))
   })
   
   observe({
-    roi_list <- rois(); req(length(roi_list) > 0); changed <- FALSE
+    roi_list <- rois()
+    req(length(roi_list) > 0)
+    changed <- FALSE
+    
     for(id in names(roi_list)) {
-      new_color <- input[[paste0("hex_", id)]]; new_name <- input[[paste0("name_", id)]]
-      if(!is.null(new_color) && new_color != "" && new_color != roi_list[[id]]$color) { roi_list[[id]]$color <- new_color; changed <- TRUE }
-      if(!is.null(new_name) && new_name != "" && new_name != roi_list[[id]]$name) { roi_list[[id]]$name <- new_name; changed <- TRUE }
+      new_color <- input[[paste0("hex_", id)]]
+      new_name <- input[[paste0("name_", id)]]
+      
+      # Ensure inputs exist before checking
+      if(!is.null(new_color) && new_color != roi_list[[id]]$color) { 
+        roi_list[[id]]$color <- new_color
+        changed <- TRUE 
+      }
+      if(!is.null(new_name) && new_name != "" && new_name != roi_list[[id]]$name) { 
+        roi_list[[id]]$name <- new_name
+        changed <- TRUE 
+      }
     }
-    if(changed) rois(roi_list)
+    
+    if(changed) {
+      # Use isolate to prevent infinite reactive loops
+      isolate({ rois(roi_list) })
+    }
   })
   
   observeEvent(input$deselect_lasso, {
@@ -367,7 +437,7 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$clear_rois, { rois(list()) })
-  observeEvent(input$selected_scan_name, { rois(list()) })
+  observeEvent(input$selected_scan_names, { rois(list()) })
   
   output$phasorPlot <- renderPlotly({
     df <- phasor_base(); active_rois <- rois()
@@ -381,7 +451,17 @@ server <- function(input, output, session) {
     p %>% layout(dragmode = "lasso", margin = list(t=30), xaxis = list(title = "G"), yaxis = list(title = "S", scaleanchor="x"))
   })
   
+  output$ramanImage_container <- renderUI({
+    if(length(input$selected_scan_names) == 1) {
+      plotOutput("ramanImage", height = "380px")
+    } else {
+      div(style="height: 380px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; color: #95a5a6; border: 1px dashed #ddd; text-align: center;",
+          p("Spatial image hidden for multiple scans."))
+    }
+  })
+  
   image_plot <- reactive({
+    req(length(input$selected_scan_names) == 1)
     df <- phasor_base(); active_rois <- rois(); sel <- event_data("plotly_selected", source = "phasorPlot")
     p <- ggplot(df, aes(x = x, y = y)) + geom_tile(fill = "grey92") + coord_fixed() + theme_void()
     for(id in names(active_rois)) if(isTRUE(input[[paste0("vis_", id)]])) p <- p + geom_tile(data = df[df$id %in% active_rois[[id]]$ids, ], fill = active_rois[[id]]$color)
@@ -405,34 +485,53 @@ server <- function(input, output, session) {
   })
   output$meanSpectrum <- renderPlot({ spectra_plot() })
   
+  #--- EXPORT LOGIC ---#
+  
+  observe({
+    if (length(rois()) == 0) shinyjs::disable("downloadFullData") else shinyjs::enable("downloadFullData")
+    if (length(input$selected_scan_names) != 1) shinyjs::disable("downloadImage") else shinyjs::enable("downloadImage")
+  })
+  
+  output$downloadFullData <- downloadHandler(
+    filename = function() { "SPCMatrix_PRISM-Analysis.csv" },
+    content = function(file) {
+      d <- current_data(); req(d); df_phasor <- phasor_base(); active_rois <- rois()
+      spc_df <- as.data.frame(d$spc); colnames(spc_df) <- as.character(wl(d))
+      final_df <- data.frame(x = d$x, y = d$y, G = df_phasor$G, S = df_phasor$S, 
+                             Scan = df_phasor$filename, Cluster_Label = "Unassigned")
+      for(id in names(active_rois)) {
+        indices <- which(df_phasor$id %in% active_rois[[id]]$ids)
+        final_df$Cluster_Label[indices] <- active_rois[[id]]$name
+      }
+      write.csv(cbind(final_df, spc_df), file, row.names = FALSE)
+    }
+  )
+  
   output$downloadImage <- downloadHandler(
-    filename = function() { paste0(gsub(".txt", "", input$selected_scan_name), "_Map.png") },
+    filename = function() { "Map_Export.png" },
     content = function(file) { ggsave(file, plot = image_plot(), device = "png", width = 8, height = 6) }
   )
   output$downloadSpectra <- downloadHandler(
-    filename = function() { paste0(gsub(".txt", "", input$selected_scan_name), "_Spectra.png") },
+    filename = function() { "Spectra_Export.png" },
     content = function(file) { ggsave(file, plot = spectra_plot(), device = "png", width = 10, height = 6) }
   )
   
   output$downloadCSV <- downloadHandler(
-    filename = function() { paste0(gsub(".txt", "", input$selected_scan_name), "_Mean_Spectra.csv") },
+    filename = function() { "Mean_Spectra_Export.csv" },
     content = function(file) {
-      d <- current_data(); req(d)
-      active_rois <- rois()
-      sel <- event_data("plotly_selected", source = "phasorPlot")
+      d <- current_data(); req(d); active_rois <- rois(); sel <- event_data("plotly_selected", source = "phasorPlot")
       export_df <- data.frame(Wavenumber = wl(d))
       for(id in names(active_rois)) {
         if(isTRUE(input[[paste0("vis_", id)]])) {
-          col_name <- active_rois[[id]]$name
-          export_df[[col_name]] <- colMeans(d$spc[active_rois[[id]]$ids, , drop=FALSE])
+          export_df[[active_rois[[id]]$name]] <- colMeans(d$spc[active_rois[[id]]$ids, , drop=FALSE])
         }
       }
-      if(!is.null(sel)) {
-        export_df[["Current_Selection"]] <- colMeans(d$spc[as.numeric(sel$key), , drop=FALSE])
-      }
+      if(!is.null(sel)) export_df[["Current_Selection"]] <- colMeans(d$spc[as.numeric(sel$key), , drop=FALSE])
       write.csv(export_df, file, row.names = FALSE)
     }
   )
 }
 
 shinyApp(ui, server)
+
+#UPDATE ####
