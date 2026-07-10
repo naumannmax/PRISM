@@ -8,8 +8,11 @@ library(hyperSpec)
 library(tidyverse)
 library(fs)
 library(shinyjs)
-library(Spikes)
-library(RustamHelperRScripts)
+
+preprocess_spc <- function(spc, input) {
+  # PUT YOUR PREPROCESSING LOGIC HERE
+  return(spc)
+}
 
 # Increase limit to 500MB for RData uploads
 options(shiny.maxRequestSize = 500 * 1024^2)
@@ -282,19 +285,7 @@ server <- function(input, output, session) {
     raw_list <- raw_data_list(); req(length(raw_list) > 0)
     withProgress(message = 'Preprocessing...', value = 0, {
       tryCatch({
-        target_wl <- seq(400, 3100, by = 4)
-        processed <- lapply(raw_list, function(spc) {
-          spc <- spc[,, 400 ~ 3100]
-          spc <- spc.spikes_remove(spc, time.dim = TRUE)
-          if(isTRUE(input$do_baseline)) spc <- spc - spc.SNIP(spc, iterations = input$snip_iter)
-          spc <- spc.loess(spc, target_wl)
-          if(isTRUE(input$do_norm)) {
-            row_norms <- sqrt(rowSums(spc^2))
-            row_norms[row_norms == 0] <- 1
-            spc <- spc / row_norms
-          }
-          return(spc)
-        })
+        processed <- lapply(raw_list, function(spc) preprocess_spc(spc, input))
         all_scans(processed)
         showNotification("Preprocessing applied.", type = "message")
       }, error = function(e) { showNotification(paste("Error:", e$message), type = "error") })
