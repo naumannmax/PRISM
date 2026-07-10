@@ -1,5 +1,5 @@
-# PRISM Shiny App [![DOI](https://zenodo.org/badge/1296663117.svg)](https://doi.org/10.5281/zenodo.21299034)
-
+# PRISM Shiny App 
+[![DOI](https://zenodo.org/badge/1296663117.svg)](https://doi.org/10.5281/zenodo.21299034)/
 PRISM is an R Shiny application for phasor-based Raman image segmentation and analysis. It provides an interactive workflow for importing Raman data, applying preprocessing, selecting clusters, and exporting spectra or image-based results.
 
 ## What this app does
