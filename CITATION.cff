@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "PRISM Shiny App"
+version: "0.1.0"
+date-released: 2026-07-10
+authors:
+  - family-names: Naumann
+    given-names: Max
+    affiliation: "Leibniz IPHT / LPI"
+abstract: "PRISM is an R Shiny application for phasor-based Raman image segmentation and analysis."
+license: MIT
+keywords:
+  - r
+  - shiny
+  - raman-spectroscopy
+  - phasor-analysis
+  - image-segmentation

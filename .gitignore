@@ -1,0 +1,13 @@
+# R / Shiny
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+
+# Private developer-only files
+private_processing_func.R
+
+# OS files
+.DS_Store
+Thumbs.db

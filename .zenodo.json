@@ -1,0 +1,19 @@
+{
+  "title": "PRISM Shiny App",
+  "description": "PRISM is an R Shiny application for phasor-based Raman image segmentation and analysis.",
+  "creators": [
+    {
+      "name": "Naumann, Max",
+      "affiliation": "Leibniz IPHT / LPI"
+    }
+  ],
+  "keywords": [
+    "R",
+    "Shiny",
+    "Raman spectroscopy",
+    "phasor analysis",
+    "image segmentation"
+  ],
+  "license": "mit",
+  "upload_type": "software"
+}
